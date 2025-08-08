@@ -1,33 +1,21 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Jul 11 16:48:59 2025
-
-Scenario: A client wants a dashboard to understand their product sales over time.
-
-Dataset: Superstore Sales Dataset (Kaggle)
-
-Prompt:
-    "Create a dashboard that shows monthly revenue, top 10 selling products, and profit by region. I want to filter by category and sub-category."
-
-Skills:
-
-    Data wrangling (Pandas)
-    
-    Time series aggregation
-    
-    Dashboard creation (Tableau, Power BI, or plotly/dash)
-    
-    Data storytelling
-
-@author: youse
+File:        eda.py
+Description: Client wants a dashboard to understand their product sales over time.
+                Create a dashboard that shows monthly revenue, top 20 selling products, 
+                and profit by region. I want to filter by category and sub-category.
+Author:      Yuseof
+Created:     2025-07-11
+Modified:    2025-08-06
+Usage:       --
 """
 
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-
 
 # import data
 df_sales = pd.read_csv('Sample - Superstore.csv', encoding='cp1252')
@@ -43,7 +31,6 @@ PATH_TO_REGIONAL_DATA = 'output/regional_sales.xlsx'
 
 #In this section, I take a look at what fields are available, what data types are present, and 
 # overall what we have to work with. I also make sure data looks accurate and fix any issues found
-
 
 # which columns/fields are available
 df_sales.dtypes
@@ -76,11 +63,6 @@ df_sales.drop(columns=['Row ID'], inplace=True)
 
 # what is the spread of the numerical data
 df_summary = df_sales.describe()
-
-TODO
-# do a brief statistical analysis of sales and profit
-# whats the shape of the bell curve
-# ask chatgpt to walk you through this, how to interpret it, what is normalizing?, what is a std dev EXACTLY?
 
 # for categorical variables, how many unique values?
 print("Column Name : # Unique Values")
@@ -118,6 +100,24 @@ products:
     - types of categories
 '''
 
+##############
+# ADJUST DATES
+##############
+
+# basically the dates are from 2014-2018, and I want them to coincide with present day for 
+# demo purposes, so simply offset the dates by the necessary amount of time
+
+# convert date columns to datetime dtype
+df_sales[['Order Date', 'Ship Date']] = df_sales[['Order Date', 'Ship Date']].apply(pd.to_datetime)
+
+# get number of days between most recent sale and today
+date_today = datetime.today()
+days_until_today = date_today - df_sales['Order Date'].max()
+days_until_today = days_until_today.days
+
+# add this day offset to all dates in the df
+df_sales[['Order Date', 'Ship Date']] = df_sales[['Order Date', 'Ship Date']] + pd.Timedelta(days=days_until_today)
+
 #################
 # CATEGORY FILTER
 #################
@@ -128,16 +128,12 @@ products:
 df_categories = df_sales[['Category', 'Sub-Category']].drop_duplicates()
 df_categories.to_excel(PATH_TO_CATEGORIES, index=False)
 
-
 #################
 # MONTHLY REVENUE
 #################
 
 # In this section, I perform some data manipulation so that we can calculate
 # and later visualize how much revenue the company is generating on a monthly basis
-
-# convert date columns to datetime dtype
-df_sales[['Order Date', 'Ship Date']] = df_sales[['Order Date', 'Ship Date']].apply(pd.to_datetime)
 
 # what range of date does the sales data cover?
 df_date_dist = df_sales[['Order Date', 'Ship Date']].describe()
@@ -161,6 +157,37 @@ df_sales_yearmo_agg = df_sales.groupby(['Order Year', 'Order Month'])['Sales'].s
 df_sales_yearmo_agg.rename(columns={'Order Year': 'year', 'Order Month': 'month'}, inplace=True)
 df_sales_yearmo_agg['date'] = pd.to_datetime(df_sales_yearmo_agg[['year', 'month']].assign(day=1))
 df_sales_yearmo_agg = df_sales_yearmo_agg.sort_values(by='date')
+
+# remove time from sales date (leave just the date)
+df_sales_yearmo_agg_filterable['date'] = df_sales_yearmo_agg_filterable['date'].dt.date
+
+# export monthly revenue data for visualization
+df_sales_yearmo_agg_filterable.to_excel(PATH_TO_MONTHLY_REVENUE_DATA, index=False)
+
+######################
+# TOP SELLING PRODUCTS
+######################
+
+# In this section, we aggregate product data to determine sale totals and units sold per product
+
+# get product sales info, broken down by category and sub-category
+df_products = df_sales.groupby(['Category', 'Sub-Category', 'Product ID', 'Product Name'])['Sales'].agg(['sum', 'count']).reset_index()
+
+# export product sales data for visualization
+df_products.to_excel(PATH_TO_PRODUCTS_DATA, index=False)
+
+##################
+# PROFIT BY REGION
+##################
+
+df_regional_sales = df_sales.groupby(['Category', 'Sub-Category', 'Country', 'Region', 'State', 'City'])['Sales'].agg(['sum', 'count']).reset_index()
+
+# export regional sales data for visualization
+df_regional_sales.to_excel(PATH_TO_REGIONAL_DATA, index=False)
+
+######################
+# MONTHLY REVENUE PLOT
+######################
 
 # set seaborn style for modern look
 sns.set_style("whitegrid")
@@ -189,38 +216,3 @@ plt.tight_layout()
 
 # Show the plot
 plt.show()
-
-# export monthly revenue data for visualization
-df_sales_yearmo_agg_filterable.to_excel(PATH_TO_MONTHLY_REVENUE_DATA, index=False)
-
-PATH_TO_MONTHLY_REVENUE_DATA = 'output/monthly_revenue.xlsx'
-PATH_TO_PRODUCTS_DATA = 'output/products.xlsx'
-
-
-######################
-# TOP SELLING PRODUCTS
-######################
-
-# In this section, we aggregate product data to determine sale totals and units sold per product
-
-# get product sales info, broken down by category and sub-category
-df_products = df_sales.groupby()
-df_products = df_sales.groupby(['Category', 'Sub-Category', 'Product ID', 'Product Name'])['Sales'].agg(['sum', 'count']).reset_index()
-
-# export product sales data for visualization
-df_products.to_excel(PATH_TO_PRODUCTS_DATA, index=False)
-
-# see breakdown of WHEN specific product are being sold (should we be advertising selling phones in december?)
-
-
-##################
-# PROFIT BY REGION
-##################
-
-df_regional_sales = df_sales.groupby(['Category', 'Sub-Category', 'Country', 'Region', 'State', 'City'])['Sales'].agg(['sum', 'count']).reset_index()
-
-# export regional sales data for visualization
-df_regional_sales.to_excel(PATH_TO_REGIONAL_DATA, index=False)
-
-
-
